@@ -44,6 +44,7 @@ if not lon_col or not lat_col or not f0_col:
     st.error("❌ Format kolom CSV tidak sesuai!")
     st.stop()
 
+# Pastikan kolom titik bertipe string agar pencocokan nama konsisten
 df[titik_col] = df[titik_col].astype(str)
 
 # Logika Geofisika
@@ -56,17 +57,16 @@ def estimasi_geologi(row):
 df['estimasi_geologi'] = df.apply(estimasi_geologi, axis=1)
 df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
-# Session State untuk menyimpan titik yang sedang aktif klik
+# Session State untuk menyimpan titik yang sedang aktif
 if "titik_aktif" not in st.session_state:
     st.session_state.titik_aktif = df[titik_col].iloc[0]
 
-# 3. Pembuatan Peta Satelit Esri dengan Pin Angka Google Maps asli
+# 3. Pembuatan Peta Satelit Esri dengan Pin Angka
 st.subheader("🗺️ Peta Klik Interaktif (Klik langsung pada Angka Titik)")
 
 center_lat = df[lat_col].mean()
 center_lon = df[lon_col].mean()
 
-# Buat base map Folium dengan Satelit Esri
 m = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles=None)
 folium.TileLayer(
     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -74,9 +74,8 @@ folium.TileLayer(
     name='Satelit Esri'
 ).add_to(m)
 
-# Trik memasang PIN berbentuk teks angka langsung tanpa bulatan mengganggu
+# Pasang PIN berbentuk teks angka ke dalam peta
 for idx, row in df.iterrows():
-    # Menentukan warna pin berdasarkan tingkat risiko Kg
     if row[kg_col] > 10: warna_bg = "red"
     elif row[kg_col] >= 3: warna_bg = "orange"
     else: warna_bg = "green"
@@ -100,28 +99,24 @@ for idx, row in df.iterrows():
     </div>
     """
     
+    # KUNCI UTAMA: Kita masukkan ID titik ke dalam tooltip/popup atau name agar bisa ditangkap Folium
     folium.Marker(
         location=[row[lat_col], row[lon_col]],
         icon=folium.DivIcon(html=html_icon),
         tooltip=f"Titik {row[titik_col]} (Klik untuk detail)",
-        custom_data=row[titik_col] # Kirim ID titik saat diklik
+        # Kita gunakan argumen popup sederhana sebagai pembawa data ID nomor titik
+        popup=folium.Popup(row[titik_col], parse_html=True)
     ).add_to(m)
 
-# Tampilkan peta ke Streamlit dan tangkap data klik user
+# Tampilkan peta ke Streamlit
 peta_output = st_folium(m, width="100%", height=450, key="peta_geofisika")
 
-# Jika user mengklik salah satu pin angka di peta, update data dashboard bawah secara otomatis
-if peta_output and peta_output.get("last_object_clicked"):
-    lat_klik = peta_output["last_object_clicked"]["lat"]
-    lon_klik = peta_output["last_object_clicked"]["lng"]
-    
-    # Cari data di dataframe yang paling cocok dengan koordinat yang diklik
-    match = df[
-        (abs(df[lat_col] - lat_klik) < 0.0001) & 
-        (abs(df[lon_col] - lon_klik) < 0.0001)
-    ]
-    if not match.empty:
-        st.session_state.titik_aktif = match[titik_col].iloc[0]
+# Trik menangkap nomor titik dari objek yang terakhir diklik tanpa mencocokkan koordinat ribet
+if peta_output and peta_output.get("last_object_clicked_popup"):
+    id_terklik = peta_output["last_object_clicked_popup"].strip()
+    # Validasi memastikan ID yang diklik memang terdaftar di file CSV
+    if id_terklik in df[titik_col].values:
+        st.session_state.titik_aktif = id_terklik
 
 st.markdown("---")
 
