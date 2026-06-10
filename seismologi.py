@@ -22,7 +22,7 @@ if uploaded_file is not None:
 else:
     st.sidebar.info("💡 Menampilkan data simulasi bawaan. Silakan unggah file CSV kamu.")
     data_default = {
-        'Titik': [1, 2, 3, 4],
+        'Titik': ['1', '2', '3', '4'],
         'Longitude': [110.3942, 110.3936, 110.3941, 110.3941],
         'Latitude': [-7.78559, -7.78529, -7.7843, -7.7843],
         'A0': [2.99115, 5.5779, 5.08743, 2.05877],
@@ -31,7 +31,7 @@ else:
     }
     df = pd.DataFrame(data_default)
 
-# Standarisasi Kolom
+# Standarisasi Nama Kolom
 df.columns = [col.strip().lower() for col in df.columns]
 lon_col = next((c for c in ['longitude', 'lon', 'long', 'x'] if c in df.columns), None)
 lat_col = next((c for c in ['latitude', 'lat', 'y'] if c in df.columns), None)
@@ -41,11 +41,11 @@ a0_col = 'a0' if 'a0' in df.columns else None
 kg_col = 'kg' if 'kg' in df.columns else None
 
 if not lon_col or not lat_col or not f0_col:
-    st.error("❌ Format kolom CSV tidak sesuai!")
+    st.error("❌ Format kolom koordinat atau parameter utama tidak ditemukan di CSV kamu!")
     st.stop()
 
-# Pastikan kolom titik bertipe string agar pencocokan nama konsisten
-df[titik_col] = df[titik_col].astype(str)
+# Bersihkan dan pastikan kolom 'titik' tipenya string utuh
+df[titik_col] = df[titik_col].astype(str).str.strip()
 
 # Logika Geofisika
 def estimasi_geologi(row):
@@ -57,8 +57,8 @@ def estimasi_geologi(row):
 df['estimasi_geologi'] = df.apply(estimasi_geologi, axis=1)
 df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
-# Session State untuk menyimpan titik yang sedang aktif
-if "titik_aktif" not in st.session_state:
+# --- LOGIKA PENYELAMAT SESSiON STATE (ANTI INDEXERROR) ---
+if "titik_aktif" not in st.session_state or st.session_state.titik_aktif not in df[titik_col].values:
     st.session_state.titik_aktif = df[titik_col].iloc[0]
 
 # 3. Pembuatan Peta Satelit Esri dengan Pin Angka
@@ -74,7 +74,7 @@ folium.TileLayer(
     name='Satelit Esri'
 ).add_to(m)
 
-# Pasang PIN berbentuk teks angka ke dalam peta
+# Pasang PIN Teks Angka ke dalam peta
 for idx, row in df.iterrows():
     if row[kg_col] > 10: warna_bg = "red"
     elif row[kg_col] >= 3: warna_bg = "orange"
@@ -94,35 +94,40 @@ for idx, row in df.iterrows():
         border: 2px solid white;
         box-shadow: 0px 2px 5px rgba(0,0,0,0.5);
         font-family: 'Arial Black';
-        font-size: 12px;">
+        font-size: 11px;">
         {row[titik_col]}
     </div>
     """
     
-    # KUNCI UTAMA: Kita masukkan ID titik ke dalam tooltip/popup atau name agar bisa ditangkap Folium
     folium.Marker(
         location=[row[lat_col], row[lon_col]],
         icon=folium.DivIcon(html=html_icon),
         tooltip=f"Titik {row[titik_col]} (Klik untuk detail)",
-        # Kita gunakan argumen popup sederhana sebagai pembawa data ID nomor titik
         popup=folium.Popup(row[titik_col], parse_html=True)
     ).add_to(m)
 
 # Tampilkan peta ke Streamlit
 peta_output = st_folium(m, width="100%", height=450, key="peta_geofisika")
 
-# Trik menangkap nomor titik dari objek yang terakhir diklik tanpa mencocokkan koordinat ribet
+# Tangkap aksi klik user pada popup pin angka
 if peta_output and peta_output.get("last_object_clicked_popup"):
     id_terklik = peta_output["last_object_clicked_popup"].strip()
-    # Validasi memastikan ID yang diklik memang terdaftar di file CSV
     if id_terklik in df[titik_col].values:
         st.session_state.titik_aktif = id_terklik
+        st.rerun() # Memaksa halaman refresh instan agar data bawah langsung berubah
 
 st.markdown("---")
 
 # 4. Tampilan Dashboard Bawah Berdasarkan Titik yang Diklik
 pilihan_titik = st.session_state.titik_aktif
-data_terpilih = df[df[titik_col] == pilihan_titik].iloc[0]
+
+# FILTER DATA AMAN: Mencari baris data yang pas
+df_terfilter = df[df[titik_col] == pilihan_titik]
+if df_terfilter.empty:
+    df_terfilter = df.head(1)
+    pilihan_titik = df_terfilter[titik_col].iloc[0]
+
+data_terpilih = df_terfilter.iloc[0]
 
 st.subheader(f"🔍 Detail Analisis Geofisika: Titik {pilihan_titik}")
 
@@ -131,7 +136,7 @@ col1, col2 = st.columns([2, 1])
 with col1:
     fig, ax = plt.subplots(figsize=(7, 3.5))
     kategori = ['Frekuensi Alami (f0)', 'Amplifikasi (A0)']
-    nilai = [data_terpilih[f0_col], data_terpilih[a0_col]]
+    nilai = [data_terpilled = data_terpilih[f0_col], data_terpilih[a0_col]]
     
     bars = ax.bar(kategori, nilai, color=['#4B0082', '#008080'], width=0.35)
     ax.set_ylabel('Nilai Parameter', fontsize=11)
