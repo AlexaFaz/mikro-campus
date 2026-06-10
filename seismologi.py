@@ -8,7 +8,7 @@ from streamlit_folium import st_folium
 st.set_page_config(page_title="Seismic Risk Dashboard", layout="wide", page_icon="🏢")
 
 st.title("🏢 Dashboard Peta Mikrotremor & Formasi Geologi Regional")
-st.write("Aplikasi geofisika teknik interaktif. Klik langsung PIN ANGKA di peta untuk melihat detail grafik!")
+st.write("Aplikasi geofisika teknik interaktif")
 
 st.markdown("---")
 
@@ -62,7 +62,7 @@ if "titik_aktif" not in st.session_state or st.session_state.titik_aktif not in 
     st.session_state.titik_aktif = df[titik_col].iloc[0]
 
 # 3. Pembuatan Peta Satelit Esri dengan Pin Angka
-st.subheader("🗺️ Peta Klik Interaktif (Klik langsung pada Angka Titik)")
+st.subheader("🗺️ Peta Klik Interaktif")
 
 center_lat = df[lat_col].mean()
 center_lon = df[lon_col].mean()
