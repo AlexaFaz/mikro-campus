@@ -44,7 +44,7 @@ if not lon_col or not lat_col or not f0_col:
     st.error("❌ Format kolom koordinat atau parameter utama tidak ditemukan di CSV kamu!")
     st.stop()
 
-# Bersihkan dan pastikan kolom 'titik' tipenya string utuh
+# Pastikan kolom 'titik' tipenya string utuh
 df[titik_col] = df[titik_col].astype(str).str.strip()
 
 # Logika Geofisika
@@ -57,7 +57,7 @@ def estimasi_geologi(row):
 df['estimasi_geologi'] = df.apply(estimasi_geologi, axis=1)
 df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
-# --- LOGIKA PENYELAMAT SESSiON STATE (ANTI INDEXERROR) ---
+# Logika Session State
 if "titik_aktif" not in st.session_state or st.session_state.titik_aktif not in df[titik_col].values:
     st.session_state.titik_aktif = df[titik_col].iloc[0]
 
@@ -114,14 +114,13 @@ if peta_output and peta_output.get("last_object_clicked_popup"):
     id_terklik = peta_output["last_object_clicked_popup"].strip()
     if id_terklik in df[titik_col].values:
         st.session_state.titik_aktif = id_terklik
-        st.rerun() # Memaksa halaman refresh instan agar data bawah langsung berubah
+        st.rerun()
 
 st.markdown("---")
 
 # 4. Tampilan Dashboard Bawah Berdasarkan Titik yang Diklik
 pilihan_titik = st.session_state.titik_aktif
 
-# FILTER DATA AMAN: Mencari baris data yang pas
 df_terfilter = df[df[titik_col] == pilihan_titik]
 if df_terfilter.empty:
     df_terfilter = df.head(1)
@@ -136,7 +135,8 @@ col1, col2 = st.columns([2, 1])
 with col1:
     fig, ax = plt.subplots(figsize=(7, 3.5))
     kategori = ['Frekuensi Alami (f0)', 'Amplifikasi (A0)']
-    nilai = [data_terpilled = data_terpilih[f0_col], data_terpilih[a0_col]]
+    # DI SINI SUDAH SAYA BENARKAN UTUH TANPA TYPO:
+    nilai = [data_terpilih[f0_col], data_terpilih[a0_col]]
     
     bars = ax.bar(kategori, nilai, color=['#4B0082', '#008080'], width=0.35)
     ax.set_ylabel('Nilai Parameter', fontsize=11)
