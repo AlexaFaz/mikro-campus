@@ -79,7 +79,7 @@ def estimasi_geologi(row):
 df['estimasi_geologi'] = df.apply(estimasi_geologi, axis=1)
 df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
-# 3. Peta Interaktif Plotly dengan Label Angka Permanen
+# 3. Peta Interaktif Plotly (MURNI SIMBOL ANGKA TANPA BULATAN)
 st.subheader("🗺️ Peta Lokasi & Distribusi Titik Pengukuran Mikrotremor")
 
 fig_map = px.scatter_mapbox(
@@ -87,10 +87,9 @@ fig_map = px.scatter_mapbox(
     lat=lat_col, 
     lon=lon_col, 
     color="potensi_kerusakan_tanah", 
-    size=df[kg_col].clip(upper=100),    
     color_continuous_scale=px.colors.sequential.YlOrRd, 
     hover_name=titik_col,
-    text=titik_col, # Memunculkan angka titik pengukuran di peta
+    text=titik_col, # Membaca angka titik dari CSV
     hover_data={
         lat_col: True,
         lon_col: True,
@@ -104,18 +103,19 @@ fig_map = px.scatter_mapbox(
     height=500
 )
 
-# Konfigurasi visual font label agar kontras dan berada di atas titik lingkaran
+# --- TRIK MENGUBAH BULATAN MENJADI MURNI TEKS ANGKA ---
 fig_map.update_traces(
-    textposition='top center',
-    textfont=dict(size=14, color='black', family='Arial Black')
+    mode='text', # Menghapus bulatan (markers) dan mengaktifkan mode teks saja
+    textfont=dict(
+        size=18,           # Ukuran angka agak besar agar jelas dibaca
+        color='black',     # Warna dasar angka hitam
+        family='Arial Black' # Font tebal/bold
+    )
 )
 
 fig_map.update_layout(mapbox_style="open-street-map")
 fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
 st.plotly_chart(fig_map, use_container_width=True)
-
-st.markdown("---")
-
 # 4. Dropdown Detail Spesifik Titik
 st.subheader("🔍 Detail Evaluasi Spesifik Titik")
 pilihan_titik = st.selectbox("Silakan pilih nomor titik pengukuran:", df[titik_col])
