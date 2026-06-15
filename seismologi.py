@@ -7,12 +7,10 @@ from streamlit_folium import st_folium
 # 1. Setting Config Halaman
 st.set_page_config(page_title="Seismic Risk Dashboard - UIN SUKA", layout="wide", page_icon="🏢")
 
-# --- PEMBARUAN: ELEMEN HEADER KAMPUS ---
-# Membuat layout kolom untuk Logo dan Judul Aplikasi di bagian atas
+# Elemen Header Kampus
 col_logo, col_judul = st.columns([1, 6])
 
 with col_logo:
-    # Mengambil lambang resmi UIN Sunan Kalijaga Yogyakarta
     url_logo_uin = "https://upload.wikimedia.org/wikipedia/commons/b/b2/Logo_UIN_Sunan_Kalijaga.png"
     st.image(url_logo_uin, width=110)
 
@@ -27,12 +25,11 @@ st.markdown("---")
 st.sidebar.header("📥 Input Data")
 uploaded_file = st.sidebar.file_uploader("Unggah file CSV Parameter Mikrotremor", type=["csv"])
 
-# --- PEMBARUAN: HILANGKAN DATA SIMULASI BAWAAN ---
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     st.sidebar.success("Data lapangan berhasil dimuat!")
     
-    # Standarisasi Nama Kolom (diubah ke lowercase & tanpa spasi luar)
+    # Standarisasi Nama Kolom
     df.columns = [col.strip().lower() for col in df.columns]
     lon_col = next((c for c in ['longitude', 'lon', 'long', 'x'] if c in df.columns), None)
     lat_col = next((c for c in ['latitude', 'lat', 'y'] if c in df.columns), None)
@@ -41,35 +38,28 @@ if uploaded_file is not None:
     a0_col = 'a0' if 'a0' in df.columns else None
     kg_col = 'kg' if 'kg' in df.columns else None
 
-    # Validasi keberadaan kolom esensial
     if not lon_col or not lat_col or not f0_col or not kg_col:
         st.error("❌ Format CSV tidak sesuai! Pastikan memiliki kolom: Titik, Longitude, Latitude, f0, a0, dan Kg.")
         st.stop()
 
-    # Bersihkan teks kolom identitas titik
     df[titik_col] = df[titik_col].astype(str).str.strip()
 
-    # LOGIKA INTERPRETASI SEISMOLOGI TEKNIK (HVSR)
-    def interpretasi_sedimen_tanah(row):
+    # LOGIKA INTERPRETASI SEISMOLOGI TEKNIK (Murni Tebal Sedimen)
+    def interpretasi_tebal_sedimen(row):
         f0 = row[f0_col]
         if f0 > 9.9:
-            tebal_sedimen = "Sangat Dangkal (< 10 meter)"
-            jenis_tanah = "Batuan Keras / Tanah Sangat Padat"
+            return "Sangat Dangkal (< 10 meter)"
         elif 2.0 <= f0 <= 9.9:
-            tebal_sedimen = "Dangkal - Menengah (10 - 50 meter)"
-            jenis_tanah = "Tanah Kaku / Pasir-Kerikil Padat"
+            return "Dangkal - Menengah (10 - 50 meter)"
         elif 0.75 <= f0 < 2.0:
-            tebal_sedimen = "Dalam (50 - 100 meter)"
-            jenis_tanah = "Tanah Lunak / Aluvium Tebal"
+            return "Dalam (50 - 100 meter)"
         else:
-            tebal_sedimen = "Sangat Dalam (> 100 meter)"
-            jenis_tanah = "Tanah Sangat Lunak / Sedimen Permukaan Sangat Tebal"
-        return pd.Series([tebal_sedimen, jenis_tanah])
+            return "Sangat Dalam (> 100 meter)"
 
-    df[['perkiraan_tebal_sedimen', 'perkiraan_jenis_tanah']] = df.apply(interpretasi_sedimen_tanah, axis=1)
+    df['perkiraan_tebal_sedimen'] = df.apply(interpretasi_tebal_sedimen, axis=1)
     df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
-    # --- 3. KOTAK METRICS / RINGKASAN STATISTIK REGIONAL ---
+    # 3. Ringkasan Statistik Regional
     st.subheader("📊 Ringkasan Kondisi Geofisika Wilayah")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Total Titik Ukur", f"{len(df)} Titik")
@@ -80,11 +70,10 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # Inisialisasi awal Session State untuk titik aktif
     if "titik_aktif" not in st.session_state or st.session_state.titik_aktif not in df[titik_col].values:
         st.session_state.titik_aktif = df[titik_col].iloc[0]
 
-    # --- 4. PEMBUATAN PETA INTERAKTIF ---
+    # 4. Pembuatan Peta Interaktif
     st.subheader("🗺️ Peta Klik Interaktif (Klik langsung pada Angka Titik)")
 
     center_lat = df[lat_col].mean()
@@ -105,7 +94,6 @@ if uploaded_file is not None:
         control=True
     ).add_to(m)
 
-    # Plotting marker PIN angka
     for idx, row in df.iterrows():
         if row[kg_col] > 10: warna_bg = "red"
         elif row[kg_col] >= 3: warna_bg = "orange"
@@ -139,7 +127,6 @@ if uploaded_file is not None:
     folium.LayerControl().add_to(m)
     peta_output = st_folium(m, width="100%", height=450, key="peta_geofisika")
 
-    # Interaktivitas Klik Peta
     if peta_output and peta_output.get("last_object_clicked"):
         lat_klik = peta_output["last_object_clicked"]["lat"]
         lon_klik = peta_output["last_object_clicked"]["lng"]
@@ -156,7 +143,7 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # --- 5. DETAIL ANALISIS & GRAFIK (TABS) ---
+    # 5. Detail Analisis & Grafik (Tabs)
     pilihan_titik = st.session_state.titik_aktif
     data_terpilih = df[df[titik_col] == pilihan_titik].iloc[0]
 
@@ -181,7 +168,7 @@ if uploaded_file is not None:
             ax.set_title(f"Spektrum Mikrotremor Titik Ukur {pilihan_titik}", fontsize=12, fontweight='bold')
             st.pyplot(fig)
             
-            # Tombol Download CSV Titik Terpilih
+            # Tombol Download CSV
             df_download = pd.DataFrame([data_terpilih])
             csv_data = df_download.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -193,8 +180,8 @@ if uploaded_file is not None:
 
         with col2:
             st.write("📊 **Hasil Interpretasi & Geofisika Teknik:**")
+            # Menampilkan perkiraan tebal sedimen saja tanpa parameter jenis tanah
             st.info(f"⏳ **Perkiraan Tebal Sedimen:** \n\n **{data_terpilih['perkiraan_tebal_sedimen']}**")
-            st.success(f"🌱 **Perkiraan Jenis Tanah:** \n\n **{data_terpilih['perkiraan_jenis_tanah']}**")
             st.markdown("---")
             st.metric(label="Potensi Kerusakan Tanah Lokal", value=f"{data_terpilih['potensi_kerusakan_tanah']}%")
             st.metric(label="Indeks Kerentanan Seismik (Kg)", value=f"{data_terpilih[kg_col]:.2f}")
@@ -222,19 +209,7 @@ if uploaded_file is not None:
             st.pyplot(fig3)
 
 else:
-    # --- TAMPILAN AWAL (KOSONGAN) SEBELUM UPLOAD FILE ---
     st.info("👋 Selamat Datang! Silakan masukkan/unggah file CSV pengukuran mikrotremor kamu melalui panel input di sebelah kiri untuk mengaktifkan seluruh analisis peta mikrozonasi.")
     
-    # Menampilkan panduan format kolom agar user tidak salah membuat file CSV
     st.subheader("📋 Panduan Format Kolom File CSV:")
     st.write("Pastikan file data lapangan `.csv` milikmu memiliki susunan nama judul kolom sebagai berikut:")
-    
-    contoh_format = pd.DataFrame({
-        'Titik': ['MR01', 'MR02'],
-        'Longitude': [110.3942, 110.3936],
-        'Latitude': [-7.78559, -7.78529],
-        'f0': [1.13, 0.48],
-        'A0': [2.99, 5.57],
-        'Kg': [7.85, 64.44]
-    })
-    st.table(contoh_format)
