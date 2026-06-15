@@ -180,7 +180,6 @@ if uploaded_file is not None:
 
         with col2:
             st.write("📊 **Hasil Interpretasi & Geofisika Teknik:**")
-            # Menampilkan perkiraan tebal sedimen saja tanpa parameter jenis tanah
             st.info(f"⏳ **Perkiraan Tebal Sedimen:** \n\n **{data_terpilih['perkiraan_tebal_sedimen']}**")
             st.markdown("---")
             st.metric(label="Potensi Kerusakan Tanah Lokal", value=f"{data_terpilih['potensi_kerusakan_tanah']}%")
@@ -207,9 +206,55 @@ if uploaded_file is not None:
             ax3.set_title("Histogram Sebaran Nilai Indeks Kerentanan (Kg)", fontsize=11, fontweight='bold')
             ax3.grid(True, linestyle='--', alpha=0.5)
             st.pyplot(fig3)
+            
+        # --- TAMBAHAN FITUR BARU: VISUALISASI RATA-RATA KESELURUHAN PENGUKURAN ---
+        st.markdown("---")
+        st.write("📈 **Nilai Rata-Rata Parameter Spektrum Makro (Gabungan Seluruh Titik)**")
+        
+        avg_col1, avg_col2 = st.columns([1, 2])
+        
+        # Hitung Nilai Rata-rata Menggunakan Pandas
+        mean_f0 = df[f0_col].mean()
+        mean_a0 = df[a0_col].mean()
+        mean_kg = df[kg_col].mean()
+        
+        with avg_col1:
+            # Tampilkan Nilai Angka Presisi lewat Kontainer Metrik
+            st.metric("Rata-Rata Frekuensi Alami (f0)", f"{mean_f0:.3f} Hz")
+            st.metric("Rata-Rata Amplifikasi (A0)", f"{mean_a0:.3f}")
+            st.metric("Rata-Rata Kerentanan Seismik (Kg)", f"{mean_kg:.3f}")
+            
+        with avg_col2:
+            # Render Horizontal Bar Chart untuk Rata-Rata f0 vs A0
+            fig_avg, ax_avg = plt.subplots(figsize=(6, 2.5))
+            params = ['Rata-rata f0 (Hz)', 'Rata-rata Amplifikasi (A0)']
+            values = [mean_f0, mean_a0]
+            
+            bars_avg = ax_avg.barh(params, values, color=['#7B1FA2', '#00796B'], height=0.4)
+            ax_avg.set_xlim(0, max(values) + 1.5)
+            ax_avg.grid(axis='x', linestyle='--', alpha=0.4)
+            
+            # Tambahkan label angka di ujung barchart
+            for bar in bars_avg:
+                width = bar.get_width()
+                ax_avg.text(width + 0.05, bar.get_y() + bar.get_height()/2, f"{width:.3f}", 
+                            ha='left', va='center', fontweight='bold', fontsize=10)
+                            
+            ax_avg.set_title("Perbandingan Rata-rata f0 dan A0 Regional", fontsize=11, fontweight='bold')
+            st.pyplot(fig_avg)
 
 else:
     st.info("👋 Selamat Datang! Silakan masukkan/unggah file CSV pengukuran mikrotremor kamu melalui panel input di sebelah kiri untuk mengaktifkan seluruh analisis peta mikrozonasi.")
     
     st.subheader("📋 Panduan Format Kolom File CSV:")
     st.write("Pastikan file data lapangan `.csv` milikmu memiliki susunan nama judul kolom sebagai berikut:")
+    
+    contoh_format = pd.DataFrame({
+        'Titik': ['MR01', 'MR02'],
+        'Longitude': [110.3942, 110.3936],
+        'Latitude': [-7.78559, -7.78529],
+        'f0': [1.13, 0.48],
+        'A0': [2.99, 5.57],
+        'Kg': [7.85, 64.44]
+    })
+    st.table(contoh_format)
