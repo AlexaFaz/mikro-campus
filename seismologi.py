@@ -47,14 +47,28 @@ if not lon_col or not lat_col or not f0_col:
 # Bersihkan teks kolom titik
 df[titik_col] = df[titik_col].astype(str).str.strip()
 
-# Logika Geofisika
-def estimasi_geologi(row):
-    f0, A0 = row[f0_col], row[a0_col]
-    if f0 > 5.0 and A0 < 2.5: return "Formasi Batuan Keras (Hard Rock)"
-    elif 2.0 <= f0 <= 5.0: return "Sedimen Klasik Padat / Batupasir-Batugamping"
-    else: return "Formasi Alluvium Lunak / Sedimen Permukaan Tebal" if A0 > 4.0 else "Formasi Sedimen Setengah Padat"
+# LOGIKA INTERPRETASI BARU (Lebih Valid Secara Seismologi Teknik)
+def interpretasi_sedimen_tanah(row):
+    f0 = row[f0_col]
+    
+    # Klasifikasi perkiraan ketebalan sedimen berdasarkan Frekuensi Alami (f0)
+    if f0 > 9.9:
+        tebal_sedimen = "Sangat Dangkal (< 10 meter)"
+        jenis_tanah = "Batuan Keras / Tanah Sangat Padat"
+    elif 2.0 <= f0 <= 9.9:
+        tebal_sedimen = "Dangkal - Menengah (10 - 50 meter)"
+        jenis_tanah = "Tanah Kaku / Pasir-Kerikil Padat"
+    elif 0.75 <= f0 < 2.0:
+        tebal_sedimen = "Dalam (50 - 100 meter)"
+        jenis_tanah = "Tanah Lunak / Aluvium Tebal"
+    else:
+        tebal_sedimen = "Sangat Dalam (> 100 meter)"
+        jenis_tanah = "Tanah Sangat Lunak / Sedimen Permukaan Sangat Tebal"
+        
+    return pd.Series([tebal_sedimen, jenis_tanah])
 
-df['estimasi_geologi'] = df.apply(estimasi_geologi, axis=1)
+# Terapkan fungsi interpretasi baru ke dataframe
+df[['perkiraan_tebal_sedimen', 'perkiraan_jenis_tanah']] = df.apply(interpretasi_sedimen_tanah, axis=1)
 df['potensi_kerusakan_tanah'] = df[kg_col].apply(lambda x: min(round((x / 50.0) * 100, 1), 100.0))
 
 # Inisialisasi awal Session State untuk titik aktif
@@ -108,12 +122,11 @@ for idx, row in df.iterrows():
 # Tampilkan peta dan tangkap data klik koordinat marker
 peta_output = st_folium(m, width="100%", height=450, key="peta_geofisika")
 
-# LOGIKA BARU: Tembak koordinat bumi langsung begitu marker tersentuh/diklik
+# Tangkap koordinat bumi langsung begitu marker diklik
 if peta_output and peta_output.get("last_object_clicked"):
     lat_klik = peta_output["last_object_clicked"]["lat"]
     lon_klik = peta_output["last_object_clicked"]["lng"]
     
-    # Mencari baris data di CSV yang memiliki selisih koordinat sangat kecil (toleransi kedekatan posisi)
     match = df[
         (abs(df[lat_col] - lat_klik) < 0.0005) & 
         (abs(df[lon_col] - lon_klik) < 0.0005)
@@ -148,12 +161,16 @@ with col1:
         yval = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2, yval + 0.1, f"{yval:.2f}", ha='center', va='bottom', fontweight='bold')
         
-    ax.set_title(f"Spektrum Mikrotremor Titik Ukur {pilihan_titik}", fontsize=12, fontweight='bold')
+    ax.set_title(f"Spektrum Mikrotremor Titik Ukur {pilihan_titik}", fontsize=12, fontweight='bold")
     st.pyplot(fig)
 
 with col2:
     st.write("📊 **Hasil Interpretasi & Geofisika Teknik:**")
-    st.success(f"🗺️ **Prediksi Formasi:** \n\n **{data_terpilih['estimasi_geologi']}**")
+    
+    # DISPLAY BARU: Memecah Perkiraan Tebal Sedimen dan Jenis Tanah
+    st.info(f"⏳ **Perkiraan Tebal Sedimen:** \n\n **{data_terpilih['perkiraan_tebal_sedimen']}**")
+    st.success(f"🌱 **Perkiraan Jenis Tanah:** \n\n **{data_terpilih['perkiraan_jenis_tanah']}**")
+    
     st.markdown("---")
     st.metric(label="Potensi Kerusakan Tanah Lokal", value=f"{data_terpilih['potensi_kerusakan_tanah']}%")
     st.metric(label="Indeks Kerentanan Seismik (Kg)", value=f"{data_terpilih[kg_col]:.2f}")
